@@ -12,9 +12,12 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
+import android.view.ScaleGestureDetector.SimpleOnScaleGestureListener;
 import android.view.View;
 import android.widget.Toast;
 
+import org.w3c.dom.DOMLocator;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -120,13 +123,12 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
             this.myOnclickListener = myOnClickListener;
 }
 
-    private class TouchListener implements OnTouchListener ,GestureDetector.OnGestureListener{
-        private static  final  int FLING_MIN_DISTANCE=20;// 移动最小距离
-        private static  final  int FLING_MAX_VELOCITY = 200;// 最大移动速度
+    private class TouchListener extends SimpleOnScaleGestureListener implements OnTouchListener,GestureDetector.OnGestureListener,GestureDetector.OnDoubleTapListener{
+        private static final int FLING_MIN_DISTANCE = 20;// 移动最小距离
+        private static final int FLING_MAX_VELOCITY = 200;// 最大移动速度
         // 构建手势探测器
-        GestureDetector gestureDetector = new GestureDetector(this);
-
-
+        GestureDetector gestureDetector = new GestureDetector(context, this);
+        ScaleGestureDetector scaleGestureDetector = new ScaleGestureDetector(context,this);
 
         /**
          * 记录是拖拉照片模式还是放大缩小照片模式
@@ -143,8 +145,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         private static final int MODE_ZOOM = 2;
         private static final int MODE_CLICK = 3;
         private static final int MIN_DIS = 50;
-
-        private float scale=1f;
+        private float scale = 1f;
         /**
          * 用于记录开始时候的坐标位置
          */
@@ -163,10 +164,10 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         private PointF midPoint;
 
         public TouchListener() {
-            currentMatrix.postScale(initScale,initScale);
+            currentMatrix.postScale(initScale, initScale);
         }
 
-        public RectF getRectF(Matrix matrix){
+        public RectF getRectF(Matrix matrix) {
             RectF rectF = new RectF();
             Drawable drawable = myImageView.getDrawable();
 
@@ -175,181 +176,165 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
 //                rectF.set(0, 0, myImageView.getWidth(),myImageView.getHeight());
                 matrix.mapRect(rectF);
                 // 矩形是现在的图片相对于 imageview 左上角  因为 matrix默认在左上角开始画
-                Log.d(TAG, "onTouch: rectF.left``"+rectF.left);
-                Log.d(TAG, "onTouch: rectF.top``"+rectF.top);
-                Log.d(TAG, "onTouch: rectF.right``"+rectF.right);
-                Log.d(TAG, "onTouch: rectF.bottom``"+rectF.bottom);
+                Log.d(TAG, "onTouch: rectF.left``" + rectF.left);
+                Log.d(TAG, "onTouch: rectF.top``" + rectF.top);
+                Log.d(TAG, "onTouch: rectF.right``" + rectF.right);
+                Log.d(TAG, "onTouch: rectF.bottom``" + rectF.bottom);
 
-                return   rectF;
+                return rectF;
             }
-            return  null;
+            return null;
         }
 
         @Override
         public boolean onTouch(View v, MotionEvent event) {
-            float width = v.getWidth();
-            float height = v.getHeight();
-            Log.d(TAG, "width: --------------------------"+width);
-            Log.d(TAG, "height:--------------------------- "+height);
-            matrix.set(myImageView.getImageMatrix());
-
-            /** 通过与运算保留最后八位 MotionEvent.ACTION_MASK = 255 */
-            switch (event.getAction() & MotionEvent.ACTION_MASK) {
-                // 手指压下屏幕
-                case MotionEvent.ACTION_DOWN:
-                    currentMatrix.set(myImageView.getImageMatrix());
-//                    map.setScaleType(ImageView.ScaleType.MATRIX);
-                    mode = MODE_CLICK;
-                    // 记录ImageView当前的移动位置
-                    startPoint.set(event.getX(), event.getY());
-                    break;
-                // 手指在屏幕上移动，改事件会被不断触发
-                case MotionEvent.ACTION_MOVE:
-                    if (mode == MODE_CLICK) {
-                        mode = MODE_DRAG;
-                    }
-                    // 拖拉图片
-                    if (mode == MODE_DRAG) {
-                        float dx = event.getX() - startPoint.x; // 得到x轴的移动距离
-                        float dy = event.getY() - startPoint.y; // 得到y轴的移动距离
-                        Log.d(TAG, "dx:   ----------    "+dx);
-                        Log.d(TAG, "dy: -----------      "+dy);
-                        // 在没有移动之前的位置上进行移动
-
-//                        matrix.getValues(value);
-//                        float sX =transX+dx;
-//                        float sY =transY+dy;
-//                        Log.d(TAG, "sX: -------------     "+sX);
-//                        Log.d(TAG, "sY: ------------      "+sY);
-
-
-//                            if (rectF.left+dx<=0
-//                                    &&rectF.top+dy<=0
-//                                    &&rectF.right+dx>=width
-//                                    &&rectF.bottom+dy>=height){
+//            float width = v.getWidth();
+//            float height = v.getHeight();
+//            Log.d(TAG, "width: --------------------------" + width);
+//            Log.d(TAG, "height:--------------------------- " + height);
+//            matrix.set(myImageView.getImageMatrix());
+//
+//            /** 通过与运算保留最后八位 MotionEvent.ACTION_MASK = 255 */
+//            switch (event.getAction() & MotionEvent.ACTION_MASK) {
+//                // 手指压下屏幕
+//                case MotionEvent.ACTION_DOWN:
+//                    currentMatrix.set(myImageView.getImageMatrix());
+////                    map.setScaleType(ImageView.ScaleType.MATRIX);
+//                    mode = MODE_CLICK;
+//                    // 记录ImageView当前的移动位置
+//                    startPoint.set(event.getX(), event.getY());
+//                    break;
+//                // 手指在屏幕上移动，改事件会被不断触发
+//                case MotionEvent.ACTION_MOVE:
+//                    if (mode == MODE_CLICK) {
+//                        mode = MODE_DRAG;
+//                    }
+//                    // 拖拉图片
+//                    if (mode == MODE_DRAG) {
+//                        float dx = event.getX() - startPoint.x; // 得到x轴的移动距离
+//                        float dy = event.getY() - startPoint.y; // 得到y轴的移动距离
+//                        Log.d(TAG, "dx:   ----------    " + dx);
+//                        Log.d(TAG, "dy: -----------      " + dy);
+//                        // 移动
+//                        matrix.set(currentMatrix);
+//                        matrix.postTranslate(dx, dy);
+//                        RectF rectF = getRectF(matrix);
+//                        if (rectF != null) {
+//                            Log.d(TAG, "onTouch: -----------------rectF.left+dx  " + rectF.left + dx);
+//                            Log.d(TAG, "onTouch: -----------------rectF.top+dy  " + rectF.top + dy);
+//                            // 调整边界位置
+//                            dx = 0;
+//                            dy = 0;
+//                            if (rectF.left >= initTransX) {
+//                                dx = initTransX - rectF.left;
+//                            }
+//                            if (rectF.top >= initTransY) {
+//                                dy = initTransY - rectF.top;
+//                            }
+//                            if (rectF.right <= initWidth + initTransX) {
+//                                dx = initTransX + initWidth - rectF.right;
+//                            }
+//                            if (rectF.bottom <= initHeight + initTransY) {
+//                                dy = initTransY + initHeight - rectF.bottom;
+//                            }
+//                            matrix.postTranslate(dx, dy);
+//                        }
+//                    }
+//                    // 放大缩小图片
+//                    else if (mode == MODE_ZOOM) {
+//                        float endDis = distance(event);// 结束距离
+//                        if (endDis > 10f) { // 两个手指并拢在一起的时候像素大于10
+//                            float sc = (endDis / startDis);// 得到缩放倍数
+//                            matrix.getValues(value);
+//                            Log.d(TAG, "sc: ------------------:  " + sc * value[Matrix.MSCALE_X]);
+//                            // 限定大小
+//                            if (sc * value[Matrix.MSCALE_X] >= initScale && sc * value[Matrix.MSCALE_X] <= maxScale) {
+//                                // 缩放
 //                                matrix.set(currentMatrix);
-//                                matrix.postTranslate(dx, dy);
+//                                matrix.postScale(sc, sc, midPoint.x, midPoint.y);
+//                                // 调整边界位置
+//                                RectF rectF = getRectF(matrix);
+//                                if (rectF != null) {
+//                                    float dx = 0;
+//                                    float dy = 0;
+//                                    if (rectF.left >= initTransX) {
+//                                        dx = initTransX - rectF.left;
+//                                    }
+//                                    if (rectF.top >= initTransY) {
+//                                        dy = initTransY - rectF.top;
+//                                    }
+//                                    if (rectF.right <= initWidth + initTransX) {
+//                                        dx = initTransX + initWidth - rectF.right;
+//                                    }
+//                                    if (rectF.bottom <= initHeight + initTransY) {
+//                                        dy = initTransY + initHeight - rectF.bottom;
+//                                    }
+//                                    matrix.postTranslate(dx, dy);
+//                                }
 //
 //                            }
-
-                        // 移动
-                        matrix.set(currentMatrix);
-                        matrix.postTranslate(dx, dy);
-                        RectF rectF = getRectF(matrix);
-                        if ( rectF != null){
-                            Log.d(TAG, "onTouch: -----------------rectF.left+dx  "+rectF.left+dx);
-                            Log.d(TAG, "onTouch: -----------------rectF.top+dy  "+rectF.top+dy);
-                            // 调整边界位置
-                            dx = 0; dy = 0;
-                            if (rectF.left>=initTransX){ dx = initTransX-rectF.left; }
-                            if (rectF.top>=initTransY){   dy = initTransY-rectF.top; }
-                            if (rectF.right<=initWidth+initTransX){dx = initTransX+initWidth-rectF.right;}
-                            if (rectF.bottom<=initHeight+initTransY){  dy = initTransY+initHeight-rectF.bottom; }
-                            matrix.postTranslate(dx,dy);
-                        }
-                    }
-                    // 放大缩小图片
-                    else if (mode == MODE_ZOOM) {
-                        float endDis = distance(event);// 结束距离
-                        if (endDis > 10f) { // 两个手指并拢在一起的时候像素大于10
-                            float sc = (endDis / startDis);// 得到缩放倍数
-                            matrix.getValues(value);
-                            Log.d(TAG, "sc: ------------------:  "+sc*value[Matrix.MSCALE_X]);
-                            // 限定大小
-                            if (sc*value[Matrix.MSCALE_X]>=initScale&&sc*value[Matrix.MSCALE_X]<=maxScale){
-                                // 缩放
-                                matrix.set(currentMatrix);
-                                matrix.postScale(sc,sc, midPoint.x, midPoint.y);
-                                // 调整边界位置
-                                RectF rectF = getRectF(matrix);
-                                if (rectF!=null){
-                                    float dx = 0;float dy = 0;
-                                    if (rectF.left>=initTransX){ dx = initTransX-rectF.left; }
-                                    if (rectF.top>=initTransY){   dy = initTransY-rectF.top; }
-                                    if (rectF.right<=initWidth+initTransX){dx = initTransX+initWidth-rectF.right;}
-                                    if (rectF.bottom<=initHeight+initTransY){  dy = initTransY+initHeight-rectF.bottom; }
-                                    matrix.postTranslate(dx,dy);
-                                }
-
-//                                //  限定边界
-//
-//                                // 尝试变换
-//                                matrix.set(currentMatrix);
-//                                // 记录状态
-//                                Matrix m = getImageMatrix();
-//                                matrix.postScale(sc,sc, midPoint.x, midPoint.y);
-//                                Log.d(TAG, "mgetImageMatrix: ------------------------"+m);
-//                                RectF rectF = getRectF(matrix);
-//                                if ( rectF != null){
-//                                    if (rectF.left>0+initTransX||rectF.top>0+initTransY
-//                                            ||rectF.right<width+initTransX||rectF.bottom<height+initTransY){
-//                                        // 超过边界  回置
-//                                        matrix.set(m);
-//                                    }
-//                                }else {
-//                                    matrix.set(m);
-//                                }
-
-
-
-
-
-                            }
-                        }
-                    }
-                    break;
-                // 手指离开屏幕
-                case MotionEvent.ACTION_UP:
-                    float x = event.getX();
-                    float y = event.getY();
-                    Log.d(TAG, "onTouch: x------" + x);
-                    Log.d(TAG, "onTouch: y------" + y);
-                    /**
-                     *    转换 图片坐标 百分比
-                     */
-                    RectF rectF =getRectF(matrix);
-                    if (rectF!=null){
-                        myImageView.getImageMatrix().getValues(value);
-                        scale = value[Matrix.MSCALE_X];
-                        x=(x-rectF.left)/(drawWidth*scale)*100;
-                        y=(y-rectF.top)/(drawHeight*scale)*100;
-                        Log.d(TAG, "onTouch: 区域适配：x   "+x);
-                        Log.d(TAG, "onTouch: 区域适配：y   "+y);
-                        String partName = matchArea(partList,x,y);
-//                        Toast.makeText(context,"区域适配：x: "+x+" y:"+y,Toast.LENGTH_SHORT).show();
-                        Log.d(TAG, "您所点击的区域: "+partName);
-                        Log.d(TAG, "myOnclickListener: "+myOnclickListener);
-                        if (myOnclickListener!=null){
-                            myOnclickListener.onClick(partName);
-                        }
-
-                    }
-                    // 当触点离开屏幕，但是屏幕上还有触点(手指)
-                case MotionEvent.ACTION_POINTER_UP:
-                    mode = 0;
-                    return  true;
+//                        }
+//                    }
 //                    break;
+//                // 手指离开屏幕
+//                case MotionEvent.ACTION_UP:
+//                    float x = event.getX();
+//                    float y = event.getY();
+//                    Log.d(TAG, "onTouch: x------" + x);
+//                    Log.d(TAG, "onTouch: y------" + y);
+//                    /**
+//                     *    转换 图片坐标 百分比
+//                     */
+//                    RectF rectF = getRectF(matrix);
+//                    if (rectF != null) {
+//                        myImageView.getImageMatrix().getValues(value);
+//                        scale = value[Matrix.MSCALE_X];
+//                        x = (x - rectF.left) / (drawWidth * scale) * 100;
+//                        y = (y - rectF.top) / (drawHeight * scale) * 100;
+//                        Log.d(TAG, "onTouch: 区域适配：x   " + x);
+//                        Log.d(TAG, "onTouch: 区域适配：y   " + y);
+//                        String partName = matchArea(partList, x, y);
+////                        Toast.makeText(context,"区域适配：x: "+x+" y:"+y,Toast.LENGTH_SHORT).show();
+//                        Log.d(TAG, "您所点击的区域: " + partName);
+//                        Log.d(TAG, "myOnclickListener: " + myOnclickListener);
+//                        if (myOnclickListener != null) {
+//                            myOnclickListener.onClick(partName);
+//                        }
+//
+//                    }
+//                    // 当触点离开屏幕，但是屏幕上还有触点(手指)
+//                case MotionEvent.ACTION_POINTER_UP:
+//                    mode = 0;
+//                    return true;
+////                    break;
+//
+//                // 当屏幕上已经有触点(手指)，再有一个触点压下屏幕
+//                case MotionEvent.ACTION_POINTER_DOWN:
+//                    mode = MODE_ZOOM;
+//                    /** 计算两个手指间的距离 */
+//                    startDis = distance(event);
+//                    /** 计算两个手指间的中间点 */
+//                    if (startDis > 10f) { // 两个手指并拢在一起的时候像素大于10
+//                        midPoint = mid(event);
+//                        //记录当前ImageView的缩放倍数
+//                        currentMatrix.set(myImageView.getImageMatrix());
+//                    }
+//                    break;
+//            }
+//
+//
+//            Log.d(TAG, "onTouch: ");
+//            myImageView.setImageMatrix(matrix);
+//            Log.d(TAG, "getImageMatrix:-------- " + myImageView.getImageMatrix());
+//            Log.d(TAG, "matrixScale: ---------" + matrix);
+//            Log.d(TAG, "currentMatrixScale: ---------" + currentMatrix);
 
-                // 当屏幕上已经有触点(手指)，再有一个触点压下屏幕
-                case MotionEvent.ACTION_POINTER_DOWN:
-                    mode = MODE_ZOOM;
-                    /** 计算两个手指间的距离 */
-                    startDis = distance(event);
-                    /** 计算两个手指间的中间点 */
-                    if (startDis > 10f) { // 两个手指并拢在一起的时候像素大于10
-                        midPoint = mid(event);
-                        //记录当前ImageView的缩放倍数
-                        currentMatrix.set(myImageView.getImageMatrix());
-                    }
-                    break;
-            }
 
 
-            Log.d(TAG, "onTouch: ");
-            myImageView.setImageMatrix(matrix);
-            Log.d(TAG, "getImageMatrix:-------- "+myImageView.getImageMatrix());
-            Log.d(TAG, "matrixScale: ---------"+matrix);
-            Log.d(TAG, "currentMatrixScale: ---------"+currentMatrix);
+            matrix.set(myImageView.getImageMatrix());
+            // 将事件交给  gestureDetector处理
+            gestureDetector.onTouchEvent(event);
+            scaleGestureDetector.onTouchEvent(event);
             return true;
         }
 
@@ -373,38 +358,177 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
             return new PointF(midX, midY);
         }
 
+        // 用户按下屏幕时触发
         @Override
         public boolean onDown(MotionEvent e) {
-            return false;
+            Log.d(TAG, "onDown: ");
+            currentMatrix.set(myImageView.getImageMatrix());
+            return true;
         }
 
+        //  用户按下100ms后触发
         @Override
         public void onShowPress(MotionEvent e) {
-
+            Log.d(TAG, "onShowPress: ");
         }
 
+        // 手指平常松开屏幕
         @Override
         public boolean onSingleTapUp(MotionEvent e) {
-            return false;
+            Log.d(TAG, "onSingleTapUp: ");
+            return true;
         }
 
+        // 手指滑动 触发move，且距离大于一定值
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+            Log.d(TAG, "onScroll: ");
+                        // 移动  事件
+//                float dx = e2.getX()-e1.getX();
+//                float dy = e2.getY()-e1.getY();
+            float dx = -distanceX;
+            float dy = -distanceY;
+                 Log.d(TAG, "dx: -------------:"+distanceX);
+                 Log.d(TAG, "dy: -------------:"+distanceY);
+//                        matrix.set(currentMatrix);
+                        matrix.postTranslate(dx, dy);
+                        RectF rectF = getRectF(matrix);
+                        if (rectF != null) {
+                            Log.d(TAG, "onTouch: -----------------rectF.left+dx  " + rectF.left + dx);
+                            Log.d(TAG, "onTouch: -----------------rectF.top+dy  " + rectF.top + dy);
+                            // 调整边界位置
+                            dx = 0; dy = 0;
+                            if (rectF.left >= initTransX) {
+                                dx = initTransX - rectF.left;
+                            }
+                            if (rectF.top >= initTransY) {
+                                dy = initTransY - rectF.top;
+                            }
+                            if (rectF.right <= initWidth + initTransX) {
+                                dx = initTransX + initWidth - rectF.right;
+                            }
+                            if (rectF.bottom <= initHeight + initTransY) {
+                                dy = initTransY + initHeight - rectF.bottom;
+                            }
+                            matrix.postTranslate(dx, dy);
+                        }
+                myImageView.setImageMatrix(matrix);
             return false;
         }
 
+        // 长按事件
         @Override
         public void onLongPress(MotionEvent e) {
+            Log.d(TAG, "onLongPress: ");
+        }
 
+        // 抛事件
+        @Override
+        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+            Log.d(TAG, "onFling: ");
+            float dx = e2.getX()-e1.getX();
+            float dy = e2.getY()-e1.getY();
+
+            return false;
+        }
+
+        // 单击事件
+        @Override
+        public boolean onSingleTapConfirmed(MotionEvent e) {
+            Log.d(TAG, "onSingleTapConfirmed: ");
+            float x = e.getX();
+            float y = e.getY();
+            Log.d(TAG, "onTouch: x------" + x);
+            Log.d(TAG, "onTouch: y------" + y);
+            /**
+             *    转换 图片坐标 百分比
+             */
+            RectF rectF = getRectF(matrix);
+            if (rectF != null) {
+                myImageView.getImageMatrix().getValues(value);
+                scale = value[Matrix.MSCALE_X];
+                x = (x - rectF.left) / (drawWidth * scale) * 100;
+                y = (y - rectF.top) / (drawHeight * scale) * 100;
+                String partName = matchArea(partList, x, y);
+                if (myOnclickListener != null) {
+                    myOnclickListener.onClick(partName);
+                }
+            }
+            return true;
+        }
+        // 双击事件
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            Log.d(TAG, "onDoubleTap: ");
+            return false;
+        }
+        @Override
+        public boolean onDoubleTapEvent(MotionEvent e) {
+            Log.d(TAG, "onDoubleTapEvent: ");
+            return false;
+        }
+        // 缩放事件
+        @Override
+        public boolean onScale(ScaleGestureDetector detector) {
+
+                            // 放大缩小图片
+                            float sc = detector.getScaleFactor();// 得到缩放倍数
+                            matrix.set(currentMatrix);
+
+                            matrix.getValues(value);
+                            // 限定大小
+//                            sc = sc * value[Matrix.MSCALE_X] < initScale?
+                            if (sc * value[Matrix.MSCALE_X] < initScale){
+                                matrix.setScale(initScale,initScale);
+                            }else if ( sc * value[Matrix.MSCALE_X] > maxScale){
+                                matrix.set(currentMatrix);
+                                matrix.setScale(maxScale,maxScale);
+                            }else {
+                                matrix.set(currentMatrix);
+                                matrix.postScale(sc,sc,detector.getFocusX(),detector.getFocusY());
+                            }
+                                // 调整边界位置
+                                RectF rectF = getRectF(matrix);
+                                if (rectF != null) {
+                                    float dx = 0;
+                                    float dy = 0;
+                                    if (rectF.left >= initTransX) {
+                                        dx = initTransX - rectF.left;
+                                    }
+                                    if (rectF.top >= initTransY) {
+                                        dy = initTransY - rectF.top;
+                                    }
+                                    if (rectF.right <= initWidth + initTransX) {
+                                        dx = initTransX + initWidth - rectF.right;
+                                    }
+                                    if (rectF.bottom <= initHeight + initTransY) {
+                                        dy = initTransY + initHeight - rectF.bottom;
+                                    }
+                                    matrix.postTranslate(dx, dy);
+                                }
+
+
+//            Log.d(TAG, "onScale: ");
+//            float s = detector.getScaleFactor();
+//            float x = detector.getFocusX();
+//            float y = detector.getFocusY();
+//            matrix.postScale(s,s,x,y);
+            myImageView.setImageMatrix(matrix);
+            return super.onScale(detector);
         }
 
         @Override
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            return false;
+        public boolean onScaleBegin(ScaleGestureDetector detector) {
+            Log.d(TAG, "onScaleBegin: ");
+            return super.onScaleBegin(detector);
+        }
+
+        @Override
+        public void onScaleEnd(ScaleGestureDetector detector) {
+            Log.d(TAG, "onScaleEnd: ");
+            super.onScaleEnd(detector);
         }
     }
-
-
 
     //  解析XML
     public List<Part> analysisMapXml() {
@@ -430,7 +554,6 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
                 //获取<person>下面的子标签<name><age>的值
                 Element nameElement = (Element) personElement.getElementsByTagName("name").item(0);
                 String name = nameElement.getTextContent();
-
 
                 Element lElement = (Element) personElement.getElementsByTagName("l").item(0);
                 float l = Float.parseFloat(lElement.getTextContent());
