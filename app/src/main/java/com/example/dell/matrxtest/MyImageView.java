@@ -242,21 +242,46 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
          */
        public  void borderAdjustment(){
 
-           matrix.set(myImageView.getImageMatrix());
+           /**
+            * 分不同的情况 进行图片回调
+            * 此时drawable大小不足以填满 imageView 时,就以初始drawable 边框为界
+            * 此时drawbale大小足以填满 imageView 时，就以   imageView 边框为界
+            */
+
            RectF rectF = getRectF(matrix);
+           matrix.set(myImageView.getImageMatrix());
+           matrix.getValues(value);
+           float scale = value[Matrix.MSCALE_X];
+           float borderLeft;
+           float borderTop;
+           float borderRight;
+           float borderBottom;
+           if (myImageView.getWidth()<scale*drawWidth
+                   &&myImageView.getHeight()<scale*drawHeight){// 足以填满
+               borderLeft =  0;
+               borderTop = 0;
+               borderRight = myImageView.getWidth();
+               borderBottom = myImageView.getHeight();
+           }else { // 填不满
+                borderLeft = initTransX;
+                borderTop = initTransY;
+                borderRight = initTransX + initWidth;
+                borderBottom = initTransY+ initHeight;
+
+           }
            float dx = 0; float dy = 0;
            if (rectF != null) {
                if (rectF.left >= initTransX) {
-                   dx = initTransX - rectF.left;
+                   dx = borderLeft- rectF.left;
                }
                if (rectF.top >= initTransY) {
-                   dy = initTransY - rectF.top;
+                   dy = borderTop - rectF.top;
                }
                if (rectF.right <= initWidth + initTransX) {
-                   dx = initTransX + initWidth - rectF.right;
+                   dx = borderRight - rectF.right;
                }
                if (rectF.bottom <= initHeight + initTransY) {
-                   dy = initTransY + initHeight - rectF.bottom;
+                   dy = borderBottom - rectF.bottom;
                }
            }
 
@@ -309,7 +334,6 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
                             if (callBack!=null&&cn<n){
                                 callBack.callBack(cn+1);
                             }
-
                         }
                     },t);
                 }
@@ -347,7 +371,6 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
 //                }
 //            });
 //           borderThread.start();
-
        }
 
         /**
