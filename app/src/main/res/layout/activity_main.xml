@@ -5,7 +5,7 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black"
+    android:background="@android:color/holo_blue_light"
     tools:context=".MainActivity">
 
     <!--<com.example.dell.matrxtest.MapLayout-->
@@ -17,12 +17,12 @@
 
     <com.example.dell.matrxtest.MyImageView
         android:id="@+id/myImageView"
-        android:src="@drawable/map"
+        android:src="@drawable/c"
         android:scaleType="matrix"
-        android:background="@android:color/holo_red_light"
+        android:background="#0000"
         android:layout_gravity="center"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
     <!--<com.example.dell.matrxtest.Image-->
         <!--android:id="@+id/image"-->
