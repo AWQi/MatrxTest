@@ -42,6 +42,7 @@ import static android.content.ContentValues.TAG;
 
 public class MyImageView extends android.support.v7.widget.AppCompatImageView {
     private  MyImageView myImageView = this;
+    private String mapPath= null;
     private List<Part> partList = null;
     private  Context context;
     float drawWidth ;
@@ -66,7 +67,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         this.context = context;
         this.setScaleType(ScaleType.MATRIX);
         this.setOnTouchListener(new TouchListener());
-        partList =  analysisMapXml();
+        partList =  analysisMapXml("map.xml");
 
     }
     /**
@@ -285,7 +286,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
                }
            }
 
-           final int t = 50; // 每一次回移的时间差 ms
+           final int t = 5; // 每一次回移的时间差 ms
            final int n = 10;//总共需要回调的次数
            final float vx =  dx/n; // 每次位移的x距离
            final float vy =  dy/n; // 每次位移的y距离
@@ -573,8 +574,6 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
             // 将事件交给  gestureDetector处理
                 gestureDetector.onTouchEvent(event);
                 scaleGestureDetector.onTouchEvent(event);
-
-
                 return  true;
 
 
@@ -619,6 +618,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         public boolean onSingleTapUp(MotionEvent e) {
             Log.d(TAG, "onSingleTapUp: ");
 //            borderAdjustment();
+            showPart(e);
             return true;
         }
 
@@ -634,7 +634,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
             Log.d(TAG, "dx: -------------:"+distanceX);
             Log.d(TAG, "dy: -------------:"+distanceY);
             matrix.postTranslate(dx, dy);
-            matrix = borderDefinition(matrix);
+//            matrix = borderDefinition(matrix);// 边界限定
             myImageView.setImageMatrix(matrix);
             return true;
         }
@@ -717,6 +717,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         public boolean onScrollUp(MotionEvent e) {
             Log.d(TAG, "onScrollUp: "+e.getX()+","+e.getY());
             borderAdjustment();
+            showPart(e);
             return false;
         }
 
@@ -724,24 +725,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
             Log.d(TAG, "onSingleTapConfirmed: ");
-            float x = e.getX();
-            float y = e.getY();
-            Log.d(TAG, "onTouch: x------" + x);
-            Log.d(TAG, "onTouch: y------" + y);
-            /**
-             *    转换 图片坐标 百分比
-             */
-            RectF rectF = getRectF(matrix);
-            if (rectF != null) {
-                myImageView.getImageMatrix().getValues(value);
-                scale = value[Matrix.MSCALE_X];
-                x = (x - rectF.left) / (drawWidth * scale) * 100;
-                y = (y - rectF.top) / (drawHeight * scale) * 100;
-                String partName = matchArea(partList, x, y);
-                if (myOnclickListener != null) {
-                    myOnclickListener.onClick(partName);
-                }
-            }
+            showPart(e);
             return true;
         }
         // 双击事件
@@ -853,37 +837,39 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
             super.onScaleEnd(detector);
         }
 
-
-        public  class  MatrixThread extends  Thread{
-            private  int type ;
-            public MatrixThread(int type) {
-                this.type = type;
-            }
-            @Override
-            public void run() {
-                switch (type){
-                    case FLING_TRANS :
-
-                        break;
-                    case BORDER_TRANS:
-
-                        break;
-                    case QUICK_SCALE :
-
-                        break;
-                    default:break;
+        public void  showPart(MotionEvent e){
+            float x = e.getX();
+            float y = e.getY();
+            Log.d(TAG, "onTouch: x------" + x);
+            Log.d(TAG, "onTouch: y------" + y);
+            /**
+             *    转换 图片坐标 百分比
+             */
+            RectF rectF = getRectF(matrix);
+            if (rectF != null) {
+                myImageView.getImageMatrix().getValues(value);
+                scale = value[Matrix.MSCALE_X];
+                x = (x - rectF.left) / (drawWidth * scale) * 100;
+                y = (y - rectF.top) / (drawHeight * scale) * 100;
+                String partName = matchArea(partList, x, y);
+                if (myOnclickListener != null) {
+                    myOnclickListener.onClick(partName);
                 }
             }
         }
     }
 
+    public  void  setMap(String path){
+        mapPath = path;
+        analysisMapXml(mapPath);
+    }
     //  解析XML
-    public List<Part> analysisMapXml() {
+    public List<Part> analysisMapXml(String mapPath) {
         //获取网络XML数据
         try {
+            if (mapPath==null){mapPath = "map.xml";}
             AssetManager assetManager = context.getAssets();
-
-            InputStream is = assetManager.open("map.xml");
+            InputStream is = assetManager.open(mapPath);
             //解析XMLDOM解析=====================================
             DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
