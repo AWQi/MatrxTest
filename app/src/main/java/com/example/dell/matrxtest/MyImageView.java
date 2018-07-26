@@ -28,8 +28,11 @@ import org.xml.sax.SAXException;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -73,6 +76,10 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
      */
     @Override
     protected boolean setFrame(int l, int t, int r, int b) {
+        drawWidth = myImageView.getDrawable().getIntrinsicWidth();
+        drawHeight = myImageView.getDrawable().getIntrinsicHeight();
+        Log.d(TAG, "onLayout: drawWidth-------:"+drawWidth);
+        Log.d(TAG, "onLayout: drawHeight------:"+drawHeight);
          boolean change = super.setFrame(l, t, r, b);
         if (getScaleType()==ScaleType.MATRIX)transMatrix();
         return  change;
@@ -110,11 +117,10 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        Log.d(TAG, "onDraw: =========================");
+
         super.onDraw(canvas);
-        drawWidth = myImageView.getDrawable().getIntrinsicWidth();
-        drawHeight = myImageView.getDrawable().getIntrinsicHeight();
-        Log.d(TAG, "onLayout: drawWidth-------:"+drawWidth);
-        Log.d(TAG, "onLayout: drawHeight------:"+drawHeight);
+
         }
 
 
@@ -126,11 +132,17 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
             this.myOnclickListener = myOnClickListener;
 }
 
-    private class TouchListener extends SimpleOnScaleGestureListener implements OnTouchListener,GestureDetector.OnGestureListener,GestureDetector.OnDoubleTapListener{
+    public  interface TimerTaskCallBack{
+        void  callBack(int n);
+    }
+
+
+
+    private class TouchListener extends SimpleOnScaleGestureListener implements OnTouchListener,GestureDetectorEx.OnGestureListener,GestureDetectorEx.OnDoubleTapListener{
         private static final int FLING_MIN_DISTANCE = 20;// 移动最小距离
         private static final int FLING_MAX_VELOCITY = 200;// 最大移动速度
         // 构建手势探测器
-        GestureDetector gestureDetector = new GestureDetector(context, this);
+        GestureDetectorEx gestureDetector = new GestureDetectorEx(context, this);
         ScaleGestureDetector scaleGestureDetector = new ScaleGestureDetector(context,this);
 
         /**
@@ -168,8 +180,15 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         private Handler handler =null;
         private static  final  int  FLING_TRANS = 101;
         private static  final  int BORDER_TRANS = 102;
+        private static  final  int QUICK_SCALE = 103;
         private Thread flingThread = null; //快速滑动事件  线程
         private Thread borderThread = null; // 边界调整 线程
+        private Thread scaleThread = null;// 快速缩放 线程
+        private Timer timer  = new Timer(); // 定时任务用于执行 ，  动画效果
+        private TimerTaskCallBack callBack  = null;
+        public  void setTimerTaskCallBack(TimerTaskCallBack callBack){
+            this.callBack  = callBack;
+        }
         public TouchListener() {
             currentMatrix.postScale(initScale, initScale);
             handler = new Handler(){
@@ -185,15 +204,13 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
                             Log.d(TAG, "handleMessage: myImageView.getImageMatrix()" + myImageView.getImageMatrix());
 
                             matrix.set(myImageView.getImageMatrix());
-                            Log.d(TAG, "handleMessage:---------1111------------- matrix" + matrix);
                             matrix.postTranslate(vx, vy);
                             matrix = borderDefinition(matrix);
-                            Log.d(TAG, "handleMessage:-----------2222----------- matrix" + matrix);
                             myImageView.setImageMatrix(matrix);
-                            Log.d(TAG, "handleMessage:-----------3333----------- matrix" + matrix);
                         }
                             break;
                         case  BORDER_TRANS: {
+                            Log.d(TAG, "BORDER_TRANS: ");
                             Bundle bundle = msg.getData();
                             float vx = (float) bundle.get("vx");
                             float vy = (float) bundle.get("vy");
@@ -201,6 +218,15 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
                             matrix.postTranslate(vx,vy);
                             myImageView.setImageMatrix(matrix);
                             break;
+                        }
+                        case QUICK_SCALE:{
+                            Bundle bundle = msg.getData();
+                            float vs = (float) bundle.get("vs");
+                            matrix.set(myImageView.getImageMatrix());
+                            Log.d(TAG, "QUICK---------  vs"+vs);
+                            matrix.postScale(vs,vs);
+                            myImageView.setImageMatrix(matrix);
+                             break;
                         }
                         default:break;
                     }
@@ -210,6 +236,7 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
        public float slowMotionFunction(float x){
             return (x-1)*(x-1)*(x-1)*(x-1);
        }
+
        /**
          * 调整边界位置
          */
@@ -232,37 +259,94 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
                    dy = initTransY + initHeight - rectF.bottom;
                }
            }
-           final float finalDx = dx;
-           final float finalDy = dy;
-           borderThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    int t = 1; // 每一次回移的时间差 ms
-                    float n = 1000;//总共需要回调的次数
-                    //
-                    float timer = 0;
-                    while(timer<1) {
-                        float vx =  finalDx/n;
-                        float vy =  finalDy/n;
+
+           final int t = 50; // 每一次回移的时间差 ms
+           final int n = 10;//总共需要回调的次数
+           final float vx =  dx/n; // 每次位移的x距离
+           final float vy =  dy/n; // 每次位移的y距离
+           timer.cancel();
+            callBack = null;
+           timer = new Timer();
+           timer.schedule(new TimerTask() {
+               @Override
+               public void run() {
+                   int cn = 1; // 当前次数
+                   /**
+                    *   发送数据
+                    */
                         Message msg = new Message();
                         msg.what = BORDER_TRANS;
-//                        float vx = slowMotionFunction(timer)* finalDx;
-//                        float vy = slowMotionFunction(timer)* finalDy;
                         Bundle bundle = new Bundle();
                         bundle.putFloat("vx",vx);
                         bundle.putFloat("vy",vy);
                         msg.setData(bundle);
                         handler.sendMessage(msg);
-                        timer+=1/n;
-                        try {
-                            Thread.sleep(t);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
+                   if (callBack!=null&&cn<n){
+                        callBack.callBack(cn+1);
+                   }
+
+               }
+           },1);
+            setTimerTaskCallBack(new TimerTaskCallBack() {
+                @Override
+                public void callBack(final int cn) {
+                    timer.cancel();
+                    timer = new Timer();
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            /**
+                             *   发送数据
+                             */
+                            Message msg = new Message();
+                            msg.what = BORDER_TRANS;
+                            Bundle bundle = new Bundle();
+                            bundle.putFloat("vx",vx);
+                            bundle.putFloat("vy",vy);
+                            msg.setData(bundle);
+                            handler.sendMessage(msg);
+                            Log.d(TAG, "cn: -------------: "+cn);
+                            if (callBack!=null&&cn<n){
+                                callBack.callBack(cn+1);
+                            }
+
                         }
-                    }
+                    },t);
                 }
             });
-           borderThread.start();
+
+//
+//           final float finalDx = dx;
+//           final float finalDy = dy;
+//           borderThread = new Thread(new Runnable() {
+//                @Override
+//                public void run() {
+//                    int t = 1; // 每一次回移的时间差 ms
+//                    float n = 500;//总共需要回调的次数
+//                    //
+//                    float timer = 0;
+//                    while(timer<1) {
+//                        float vx =  finalDx/n;
+//                        float vy =  finalDy/n;
+//                        Message msg = new Message();
+//                        msg.what = BORDER_TRANS;
+////                        float vx = slowMotionFunction(timer)* finalDx;
+////                        float vy = slowMotionFunction(timer)* finalDy;
+//                        Bundle bundle = new Bundle();
+//                        bundle.putFloat("vx",vx);
+//                        bundle.putFloat("vy",vy);
+//                        msg.setData(bundle);
+//                        handler.sendMessage(msg);
+//                        timer+=1/n;
+//                        try {
+//                            Thread.sleep(t);
+//                        } catch (InterruptedException e) {
+//                            e.printStackTrace();
+//                        }
+//                    }
+//                }
+//            });
+//           borderThread.start();
 
        }
 
@@ -464,9 +548,13 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
 
             matrix.set(myImageView.getImageMatrix());
             // 将事件交给  gestureDetector处理
-            gestureDetector.onTouchEvent(event);
-            scaleGestureDetector.onTouchEvent(event);
-            return true;
+                gestureDetector.onTouchEvent(event);
+                scaleGestureDetector.onTouchEvent(event);
+
+
+                return  true;
+
+
         }
 
 
@@ -520,38 +608,11 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
 //                float dy = e2.getY()-e1.getY();
             float dx = -distanceX;
             float dy = -distanceY;
-                 Log.d(TAG, "dx: -------------:"+distanceX);
-                 Log.d(TAG, "dy: -------------:"+distanceY);
-//                        matrix.set(currentMatrix);
-                        matrix.postTranslate(dx, dy);
-//                        /**
-//                         * 调整边界位置
-//                         */
-//                        RectF rectF = getRectF(matrix);
-//                        if (rectF != null) {
-//                            Log.d(TAG, "onTouch: -----------------rectF.left+dx  " + rectF.left + dx);
-//                            Log.d(TAG, "onTouch: -----------------rectF.top+dy  " + rectF.top + dy);
-//
-//                            dx = 0; dy = 0;
-//                            if (rectF.left >= initTransX) {
-//                                dx = initTransX - rectF.left;
-//                            }
-//                            if (rectF.top >= initTransY) {
-//                                dy = initTransY - rectF.top;
-//                            }
-//                            if (rectF.right <= initWidth + initTransX) {
-//                                dx = initTransX + initWidth - rectF.right;
-//                            }
-//                            if (rectF.bottom <= initHeight + initTransY) {
-//                                dy = initTransY + initHeight - rectF.bottom;
-//                            }
-//                            matrix.postTranslate(dx, dy);
-//                        }
-
+            Log.d(TAG, "dx: -------------:"+distanceX);
+            Log.d(TAG, "dy: -------------:"+distanceY);
+            matrix.postTranslate(dx, dy);
             matrix = borderDefinition(matrix);
-
             myImageView.setImageMatrix(matrix);
-//            borderAdjustment();
             return true;
         }
 
@@ -566,35 +627,74 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         public boolean onFling(MotionEvent e1, MotionEvent e2, final float velocityX, final float velocityY) {
             Log.d(TAG, "onFling: ");
 
-            flingThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    float timer = 0;
-                    while (timer<1){
-                        float k = 0.1f; //  滑动速率限定
-                        float vy = velocityY*slowMotionFunction(timer)*k; //  x速率
-                        float vx= velocityX*slowMotionFunction(timer)*k; //  y 速率
-                        int t = 100;// 每次移动的时间间隔
-                        float n  = 10; // 移动次数
-                        Message msg = new Message();
-                        Bundle bundle =  new Bundle();
-                        bundle.putFloat("vx",vx);
-                        bundle.putFloat("vy",vy);
-                        msg.setData(bundle);
-                        msg.what =  FLING_TRANS;
-                        handler.sendMessage(msg);
-                        timer+=1/n;
-                        try {
-                            Thread.sleep(t);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    borderAdjustment();
-                }
-            });
-            flingThread.start();
+
+//            timer.cancel();
+//            timer = new Timer();
+//            timer.schedule(new TimerTask() {
+//                @Override
+//                public void run() {
+//                    float ti =0; // 线程终止标志
+//                    while (ti <1){
+//                        float k = 0.1f; //  滑动速率限定
+//                        float vy = velocityY*slowMotionFunction(ti)*k; //  x速率
+//                        float vx= velocityX*slowMotionFunction(ti)*k; //  y 速率
+//                        int t = 100;// 每次移动的时间间隔
+//                        float n  = 10; // 移动次数
+//                        Message msg = new Message();
+//                        Bundle bundle =  new Bundle();
+//                        bundle.putFloat("vx",vx);
+//                        bundle.putFloat("vy",vy);
+//                        msg.setData(bundle);
+//                        msg.what =  FLING_TRANS;
+//                        handler.sendMessage(msg);
+//                        ti +=1/n;
+//                        try {
+//                            Thread.sleep(t);
+//                        } catch (InterruptedException e) {
+//                            e.printStackTrace();
+//                        }
+//                    }
+//                    borderAdjustment();
+//                }
+//            },0);
+
+
+//            flingThread = new Thread(new Runnable() {
+//                @Override
+//                public void run() {
+//                    float ti =0; // 线程终止标志
+//                    while (ti <1){
+//                        float k = 0.1f; //  滑动速率限定
+//                        float vy = velocityY*slowMotionFunction(ti)*k; //  x速率
+//                        float vx= velocityX*slowMotionFunction(ti)*k; //  y 速率
+//                        int t = 100;// 每次移动的时间间隔
+//                        float n  = 10; // 移动次数
+//                        Message msg = new Message();
+//                        Bundle bundle =  new Bundle();
+//                        bundle.putFloat("vx",vx);
+//                        bundle.putFloat("vy",vy);
+//                        msg.setData(bundle);
+//                        msg.what =  FLING_TRANS;
+//                        handler.sendMessage(msg);
+//                        ti +=1/n;
+//                        try {
+//                            Thread.sleep(t);
+//                        } catch (InterruptedException e) {
+//                            e.printStackTrace();
+//                        }
+//                    }
+//                    borderAdjustment();
+//                }
+//            });
+//            flingThread.start();
             return true;
+        }
+
+        @Override
+        public boolean onScrollUp(MotionEvent e) {
+            Log.d(TAG, "onScrollUp: "+e.getX()+","+e.getY());
+            borderAdjustment();
+            return false;
         }
 
         // 单击事件
@@ -652,25 +752,26 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
                                 matrix.set(currentMatrix);
                                 matrix.postScale(sc,sc,detector.getFocusX(),detector.getFocusY());
                             }
-                                // 调整边界位置
-                                RectF rectF = getRectF(matrix);
-                                if (rectF != null) {
-                                    float dx = 0;
-                                    float dy = 0;
-                                    if (rectF.left >= initTransX) {
-                                        dx = initTransX - rectF.left;
-                                    }
-                                    if (rectF.top >= initTransY) {
-                                        dy = initTransY - rectF.top;
-                                    }
-                                    if (rectF.right <= initWidth + initTransX) {
-                                        dx = initTransX + initWidth - rectF.right;
-                                    }
-                                    if (rectF.bottom <= initHeight + initTransY) {
-                                        dy = initTransY + initHeight - rectF.bottom;
-                                    }
-                                    matrix.postTranslate(dx, dy);
-                                }
+                            matrix = borderDefinition(matrix);
+//                                // 调整边界位置
+//                                RectF rectF = getRectF(matrix);
+//                                if (rectF != null) {
+//                                    float dx = 0;
+//                                    float dy = 0;
+//                                    if (rectF.left >= initTransX) {
+//                                        dx = initTransX - rectF.left;
+//                                    }
+//                                    if (rectF.top >= initTransY) {
+//                                        dy = initTransY - rectF.top;
+//                                    }
+//                                    if (rectF.right <= initWidth + initTransX) {
+//                                        dx = initTransX + initWidth - rectF.right;
+//                                    }
+//                                    if (rectF.bottom <= initHeight + initTransY) {
+//                                        dy = initTransY + initHeight - rectF.bottom;
+//                                    }
+//                                    matrix.postTranslate(dx, dy);
+//                                }
 
 
 //            Log.d(TAG, "onScale: ");
@@ -690,7 +791,66 @@ public class MyImageView extends android.support.v7.widget.AppCompatImageView {
         @Override
         public void onScaleEnd(ScaleGestureDetector detector) {
             Log.d(TAG, "onScaleEnd: ");
+            final long time = detector.getTimeDelta();// 得到两次事件的时间差 快速缩放与慢速缩放的时间差不同 可以进行判断   100
+            final float factor = detector.getScaleFactor();// 得到缩放因子
+
+            if (time<100){// 判断是否是快速缩放
+                Log.d(TAG, "quickScale: ");
+                int s =factor>1?1:0; //记录是缩还是放, 缩为0 ,放为1
+                scaleThread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        float n = 10; // 持续缩放的次数
+                        int t = 1; // 缩放的时间间隔
+                        float timer = 0;//
+                        while (timer<1){
+                            float vs = slowMotionFunction(timer)*Math.abs(factor-1); // 根据函数获取变化速率
+                            vs = factor>1?vs+1:vs;// 速率添加缩放状态
+                            Message msg = new Message();
+                            msg.what = QUICK_SCALE;
+                            Bundle bundle = new Bundle();
+                            bundle.putFloat("vs",vs);
+                            msg.setData(bundle);
+                            handler.sendMessage(msg);
+                            timer+=1/n;
+                            Log.d(TAG, "timer---------------: "+timer);
+                            try {
+                                Thread.sleep(t);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+
+                        }
+                    }
+                });
+//                scaleThread.start();
+            }
+            Log.d(TAG, "onScaleEnd factor----------------------------: "+factor);
+            Log.d(TAG, "onScaleEnd time------------------------------: "+time);
             super.onScaleEnd(detector);
+        }
+
+
+        public  class  MatrixThread extends  Thread{
+            private  int type ;
+            public MatrixThread(int type) {
+                this.type = type;
+            }
+            @Override
+            public void run() {
+                switch (type){
+                    case FLING_TRANS :
+
+                        break;
+                    case BORDER_TRANS:
+
+                        break;
+                    case QUICK_SCALE :
+
+                        break;
+                    default:break;
+                }
+            }
         }
     }
 
